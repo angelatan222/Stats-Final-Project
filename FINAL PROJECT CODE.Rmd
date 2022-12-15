@@ -1,0 +1,417 @@
+---
+title: "Final Project"
+author: "Angela Tan"
+date: "2022-11-29"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+The study I am using: 
+
+https://www.science.org/doi/10.1126/sciadv.aba9221 
+
+```{r}
+install.packages("dagitty")
+install.packages("ggdag")
+library(ggplot2)
+library(ggdag)
+#provided data files
+att <- read.csv("Stats-Final-Project/attributes.csv") %>%  # file of participant attributes
+  mutate(PPID = as.character(PPID))
+sna1 <- read.csv("Stats-Final-Project/SNA_T1.csv")      # time 1 network data
+sna2 <- read.csv("Stats-Final-Project/SNA_T2.csv")      # time 1 network data
+
+# final datasets after running FromNets_OnlineMaterial.R - quantified social network strengths 
+# the 290 students who completed the intervention 
+int290 <- read.csv("Stats-Final-Project/int290.csv") 
+int290long <- read.csv("Stats-Final-Project/int290long.csv")
+# the 226 students who completed 
+complet226 <- read.csv("Stats-Final-Project/complet226.csv")
+complet226long <- read.csv("Stats-Final-Project/complet226long.csv")
+```
+
+# Participant descriptives
+
+Condition breakdown among all 290 students who completed the intervention:
+
+```{r}
+table(int290$Intervention)
+
+ggplot(data = att, aes( x = factor(Intervention), fill = Intervention) ) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=0)
+```
+Of the 328 students who consented to participate, 290 students (88%; 145 Control and 145 Affirmed) completed the intervention. That is, 38 students (12%) did not complete the affirmation intervention. 
+
+
+Condition breakdown among 226 "completers" (students who completed the intervention and both surveys):
+
+```{r}
+table(complet226$Intervention)
+```
+Of the 328 students who consented to participate, 226 (70%; 118 Control and 108 Affirmed) students completed the affirmation exercise as well as both the pre and post-semester questionnaires
+
+## Multiple regression analyses predicting friendship network DVs from intervention condition
+
+### TIME 1
+
+```{r}
+# Closeness
+modfclose1 <- lm(hclose.T1.Fr ~ Intervention + RecitationC, complet226)
+#summary(modfclose1)
+
+# Betweenness
+modfbtwn1 <- lm(btwn.T1.Fr ~ Intervention + RecitationC, complet226)
+#summary(modfbtwn1)
+
+# Degree (total)
+modfdegtot1 <- lm(degtot.T1.Fr ~ Intervention + RecitationC, complet226)
+#summary(modfdegtot1)
+```
+
+### TIME 2
+
+```{r}
+# Closeness
+modfclose2 <- lm(hclose.T2.Fr ~ Intervention + RecitationC + hclose.T1.Fr.gmc, complet226) 
+#summary(modfclose2)
+
+# Betweenness
+modfbtwn2 <- lm(btwn.T2.Fr ~ Intervention + RecitationC + btwn.T1.Fr.gmc, complet226)
+#summary(modfbtwn2)
+
+# Degree (total)
+modfdegtot2 <- lm(degtot.T2.Fr ~ Intervention + RecitationC + degtot.T1.Fr.gmc, complet226) 
+#summary(modfdegtot2)
+```
+
+## Permutation tests of network measures
+
+```{r}
+# Prep for permutation analyses
+
+numrands <- 200  # set number of permutations to 200 instead of 20,000
+fmat1r <- fmat1    # create copy of time 1 network matrix to randomize
+fmat2r <- fmat2    # create copy of time 2 network matrix to randomize
+
+complet226sub <- complet226 %>%
+  dplyr::select(PPID, Intervention, RecitationC, degtot.T1.Fr.gmc, degtot.T2.Fr,
+                degout.T1.Fr.gmc, degout.T2.Fr, degin.T1.Fr.gmc, degin.T2.Fr, hclose.T1.Fr.gmc, 
+                hclose.T2.Fr, btwn.T1.Fr.gmc, btwn.T2.Fr, strtotavg.T1.Fr.gmc, strtotavg.T2.Fr,
+                stroutavg.T1.Fr.gmc, stroutavg.T2.Fr, strinavg.T1.Fr.gmc, strinavg.T2.Fr)
+```
+
+### Time 1 permutation tests
+For permutations tests, I copied over the study's original code on how they quantified social networks. Then, similar to what we did in class, stored the p-value of each permutation into a vector, found the percentage of pvalues that that were greater or equal to the observed pvalue, and found the permutation p-value that will be used in Table 2. 
+
+#### Time 1 closeness centrality 
+```{r}
+fclose1.coef.obs <- modfclose1$coefficients[2] # coefficient of effect of intervention condition on closeness centrality
+fclose1.coef.out <- vector("numeric")
+
+for(i in 1:numrands){   
+  randnodes <- sample(rownames(fmat1), replace = FALSE)   # randomly order node labels
+  rownames(fmat1r) <- randnodes                           # assign randomly ordered nodes to row names of matrix
+  colnames(fmat1r) <- randnodes                           # assign randomly ordered nodes to column names of matrix
+   
+  # the paper's method of quantifying social networks                                                           
+  fg1r <- igraph::graph.adjacency(fmat1r, mode=c("directed"), weighted=TRUE, diag=FALSE)  # form network out of matrix
+  close1r <- as.data.frame(harmonic_centrality(fg1r, mode="all", weights=E(fg1r)$weight)/(vcount(fg1r)-1)) # compute closeness centrality of each node in new network
+  names(close1r) <- "hclose1r"        # name variable
+  close1r$PPID <- row.names(close1r)  # save participant id numbers
+  
+  complet226subr <- left_join(complet226sub, close1r, by="PPID")  
+  
+  modfclose1r <- lm(hclose1r ~ Intervention + RecitationC, complet226subr)  # linear model predicting degree in permuted network
+  fclose1.coef.out[i] <- modfclose1r$coefficients[2]                      # save intervention coefficient
+}
+
+fclose1.p <- sum(abs(fclose1.coef.out) >= abs(fclose1.coef.obs))/numrands
+fclose1.p #permutations pvalue 
+```
+
+#### Time 1 betweenness centrality
+
+```{r}
+fbtwn1.coef.obs <- modfbtwn1$coefficients[2]
+fbtwn1.coef.out <- vector("numeric")
+
+for(i in 1:numrands){
+  
+  randnodes <- sample(rownames(fmat1), replace = FALSE)
+  rownames(fmat1r) <- randnodes
+  colnames(fmat1r) <- randnodes
+  
+  fg1r <- igraph::graph.adjacency(fmat1r, mode=c("directed"), weighted=TRUE, diag=FALSE)
+  btwn1r <- as.data.frame(betweenness(fg1r, normalized = TRUE))
+  names(btwn1r) <- "btwn1r"
+  btwn1r$PPID <- row.names(btwn1r)
+  complet226subr <- left_join(complet226sub, btwn1r, by="PPID")
+  
+  modfbtwn1r <- lm(btwn1r ~ Intervention + RecitationC, complet226subr)
+  fbtwn1.coef.out[[i]] <- modfbtwn1r$coefficients[2]
+  
+}
+
+fbtwn1.p <- sum(abs(fbtwn1.coef.out) >= abs(fbtwn1.coef.obs))/numrands
+fbtwn1.p 
+```
+
+#### Time 1 total degree centrality
+
+```{r}
+fdegtot1.coef.obs <- modfdegtot1$coefficients[2]
+fdegtot1.coef.out <- vector("numeric")
+
+for(i in 1:numrands){
+  
+  randnodes <- sample(rownames(fmat1), replace = FALSE)
+  rownames(fmat1r) <- randnodes
+  colnames(fmat1r) <- randnodes
+ 
+  fg1r <- igraph::graph.adjacency(fmat1r, mode=c("directed"), weighted=TRUE, diag=FALSE)
+  
+  degtot1r <- as.data.frame(degree(fg1r, mode = "total"))
+  names(degtot1r) <- "degtot1r"
+  degtot1r$PPID <- row.names(degtot1r)
+  
+  complet226subr <- left_join(complet226sub, degtot1r, by="PPID")
+  
+  modfdegtot1r <- lm(degtot1r ~ Intervention + RecitationC, complet226subr)
+  fdegtot1.coef.out[[i]] <- modfdegtot1r$coefficients[2]
+  
+}
+
+fdegtot1.p <- sum(abs(fdegtot1.coef.out) >= abs(fdegtot1.coef.obs))/numrands 
+fdegtot1.p
+```
+
+### Time 2 permutation tests
+
+#### Time 2 closeness centrality
+```{r}
+fclose2.coef.obs <- modfclose2$coefficients[2]
+fclose2.coef.out <- vector("numeric")
+
+for(i in 1:numrands){
+  
+  randnodes <- sample(rownames(fmat2), replace = FALSE)
+  rownames(fmat2r) <- randnodes
+  colnames(fmat2r) <- randnodes
+  
+  fg2r <- igraph::graph.adjacency(fmat2r, mode=c("directed"), weighted=TRUE, diag=FALSE)
+  close2r <- as.data.frame(harmonic_centrality(fg2r, mode="all", weights=E(fg2r)$weight)/(vcount(fg2r)-1))
+  names(close2r) <- "hclose2r"
+  close2r$PPID <- row.names(close2r)
+  complet226subr <- merge(close2r, complet226sub, by="PPID")
+  
+  modfclose2r <- lm(hclose2r ~ Intervention + RecitationC + hclose.T1.Fr.gmc, complet226subr)
+  fclose2.coef.out[[i]] <- modfclose2r$coefficients[2]
+  
+  #print(i)
+}
+
+fclose2.p <- sum(abs(fclose2.coef.out) >= abs(fclose2.coef.obs))/numrands
+fclose2.p
+```
+
+#### Time 2 betweenness centrality
+```{r}
+fbtwn2.coef.obs <- modfbtwn2$coefficients[2]
+fbtwn2.coef.out <- vector("numeric")
+
+for(i in 1:numrands){
+  
+  randnodes <- sample(rownames(fmat2), replace = FALSE)
+  rownames(fmat2r) <- randnodes
+  colnames(fmat2r) <- randnodes
+  
+  fg2r <- igraph::graph.adjacency(fmat2r, mode=c("directed"), weighted=TRUE, diag=FALSE)
+  btwn2r <- as.data.frame(betweenness(fg2r, normalized = TRUE))
+  names(btwn2r) <- "btwn2r"
+  btwn2r$PPID <- row.names(btwn2r)
+  complet226subr <- merge(btwn2r, complet226sub, by="PPID")
+  
+  modfbtwn2r <- lm(btwn2r ~ Intervention + RecitationC + btwn.T1.Fr.gmc, complet226subr)
+  fbtwn2.coef.out[[i]] <- modfbtwn2r$coefficients[2]
+  
+  # print(i)
+}
+
+fbtwn2.p <- sum(abs(fbtwn2.coef.out) >= abs(fbtwn2.coef.obs))/numrands
+fbtwn2.p 
+```
+
+#### Time 2 total degree centrality and strength of ties
+```{r}
+fdegtot2.coef.obs <- modfdegtot2$coefficients[2]
+fdegtot2.coef.out <- vector("numeric")
+
+for(i in 1:numrands){
+  
+  randnodes <- sample(rownames(fmat2), replace = FALSE)
+  rownames(fmat2r) <- randnodes
+  colnames(fmat2r) <- randnodes
+  
+  fg2r <- igraph::graph.adjacency(fmat2r, mode=c("directed"), weighted=TRUE, diag=FALSE)
+  
+  degtot2r <- as.data.frame(degree(fg2r, mode = "total"))
+  names(degtot2r) <- "degtot2r"
+  degtot2r$PPID <- row.names(degtot2r)
+
+  complet226subr <- left_join(complet226sub, degtot2r, by="PPID")
+  
+  modfdegtot2r <- lm(degtot2r ~ Intervention + RecitationC + degtot.T1.Fr.gmc, complet226subr)
+  fdegtot2.coef.out[[i]] <- modfdegtot2r$coefficients[2]
+
+  # print(i)
+}
+
+fdegtot2.p <- sum(abs(fdegtot2.coef.out) >= abs(fdegtot2.coef.obs))/numrands
+fdegtot2.p
+```
+
+## Reproducing Table 2
+```{r}
+# function to combine all elements to get each row in table 2 
+table_2_rows <- function(mod, perm_p) {
+  CI <- confint(mod, "InterventionVAffirm", level=.95) # 95% CI for intervention effect
+  CI <- paste(round(CI[1],3), "to", round(CI[2],3))
+  
+  vector <- c(round(mod$coefficients[2],3), #b1obs
+  round(summary(mod)$coefficients[2,2],3), #SE
+  round(summary(mod)$coefficients[2,3],3), #t
+  CI, #Confidence Interval
+  round(summary(mod)$coefficients[2,4], 3), #pvalue
+  perm_p) #permutation pvalue
+  return(vector)
+}
+
+#putting each mod into the function to get each row in table 2
+t1_closeness <- table_2_rows(modfclose1, fclose1.p)
+t1_betweenness <- table_2_rows(modfbtwn1, fbtwn1.p)
+t1_degree <- table_2_rows(modfdegtot1, fdegtot1.p)
+
+t2_closeness <- table_2_rows(modfclose2, fclose2.p)
+t2_betweenness <- table_2_rows(modfbtwn2, fbtwn2.p)
+t2_degree <- table_2_rows(modfdegtot2, fdegtot2.p)
+
+Time1 <- data.frame(rbind(t1_closeness, t1_betweenness, t1_degree))
+colnames(Time1) <- c("b_1obs", "SE", "t", "95% CI", "P", "P_perm")
+
+Time2 <- data.frame(rbind(t2_closeness, t2_betweenness, t2_degree))
+colnames(Time2) <- c("b_1obs", "SE", "t", "95% CI", "P", "P_perm")
+
+print(Time1)
+print(Time2)
+```
+
+## Biology track persistence
+
+```{r}
+int290 %>% group_by(Intervention) %>% dplyr::summarize(meanpersist = mean(TookSpringClass))
+```
+
+Logistic regression:
+```{r}
+summary(glm(TookSpringClass ~ Intervention + RecitationC, int290, family="binomial"))
+```
+
+# EVALUATING THE RESULTS 
+## Removing RecitationC Variable 
+
+### TIME 2 regression models without RecitationC variable
+
+```{r}
+# Closeness
+modclose2 <- lm(hclose.T2.Fr ~ Intervention + hclose.T1.Fr.gmc, complet226) 
+
+# Betweenness
+
+modbtwn2 <- lm(btwn.T2.Fr ~ Intervention + btwn.T1.Fr.gmc, complet226)
+
+# Degree (total)
+moddegtot2 <- lm(degtot.T2.Fr ~ Intervention + degtot.T1.Fr.gmc, complet226) 
+```
+
+
+### Reproducing Table 2 without RecitationC
+```{r}
+t2_closeness2 <- table_2_rows(modclose2, 0)
+t2_betweenness2 <- table_2_rows(modbtwn2, 0)
+t2_degree2 <- table_2_rows(moddegtot2, 0)
+
+Time2_sansRecitation <- data.frame(rbind(t2_closeness2, t2_betweenness2, t2_degree2)) 
+colnames(Time2_sansRecitation) <- c("b_1obs", "SE", "t", "95% CI", "P", "P_perm")
+Time2_sansRecitation <- subset(Time2_sansRecitation, select=-c(P_perm))
+print(Time2_sansRecitation) #same significance results
+```
+
+### Biology track persistence
+Logistic regression
+```{r}
+summary(glm(TookSpringClass ~ Intervention, int290, family="binomial"))
+```
+
+## Changing evaluation criteria 
+```{r}
+snat1_interest<- subset(SNA_T1, select= c(PPID, Friend1Strength, Friend2Strength, Friend3Strength, Friend4Strength, Friend5Strength, Friend6Strength)) #selecting friendship strengths
+snat1_interest[is.na(snat1_interest)] <- 0
+snat1_interest$Friendship <- rowSums(snat1_interest[ , c(2:7)]) #summing up friendship strengths
+t1 <- subset(snat1_interest, select= c(PPID, Friendship))%>%  #selecting participant ID and friendship 
+  mutate(PPID = as.character(PPID))
+
+snat2_interest<- subset(SNA_T2, select= c(PPID, Friend1Strength, Friend2Strength, Friend3Strength, Friend4Strength, Friend5Strength, Friend6Strength))
+snat2_interest[is.na(snat2_interest)] <- 0
+snat2_interest$Friendship <- rowSums(snat2_interest[ , c(2:7)])
+t2 <- subset(snat2_interest, select= c(PPID, Friendship))%>%
+   mutate(PPID = as.character(PPID))
+
+df <- merge(att, t1, by="PPID", all.x=TRUE, all.y = TRUE)
+df_all <- merge(df,t2,by="PPID",all.x=TRUE, all.y = TRUE)
+
+df_all <- df_all[complete.cases(df_all), ]
+df_all$Difference <- df_all$Friendship.y - df_all$Friendship.x
+
+mod_eval <- lm(Difference ~ Intervention, df_all)
+summary(mod_eval)
+mod_friendship<- lm(Friendship.y ~ Friendship.x, df_all)
+mod_friendship$coefficients
+plot(df_all$Friendship.x, df_all$Friendship.y, 
+     xlab = "Friendship T1",
+     ylab = "Friendship T2")
+abline(a = mod_friendship$coefficients[1], b= mod_friendship$coefficients[2], col="blue")
+```
+This plot shows the linear relationship between Summed Friendship Strenghs in the two time periods. As seen, higher friendship at T1 is associated with higher friendship at T2. 
+
+## Using DAGs - Mediator 
+```{r}
+#closeness
+X <- int290$Intervention 
+Z <- int290$hclose.T2.Fr
+Y <- int290$TookSpringClass
+
+summary(glm(Y ~ X, family = "binomial")) #does x cause y in the overall sense? yes
+summary(glm(Y ~ X + Z, family = "binomial")) #but when u add in the mediator z, now it looks like x does not cause y. power of x disappears. 
+
+#betweenness
+Z <- int290$btwn.T2.Fr
+
+summary(glm(Y ~ X, family = "binomial")) 
+summary(glm(Y ~ X + Z, family = "binomial"))
+
+#degree 
+Z <- int290$degtot.T2.Fr
+
+summary(glm(Y ~ X, family = "binomial")) 
+summary(glm(Y ~ X + Z, family = "binomial"))
+
+dagify(Y ~ Z, Z~X) %>%
+  ggdag()
+```
+
+
+
+
+
