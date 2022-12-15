@@ -12,14 +12,14 @@ library(CINNA)
 library(reshape2)
 
 ## Load custom functions
-source("Final Project/Functions_OnlineMaterial.R")
+source("Stats-Final-Project/Functions_OnlineMaterial.R")
 
 ## Read in data
-att <- read.csv("Final Project/attributes.csv") %>%  # file of participant attributes
+att <- read.csv("Stats-Final-Project/attributes.csv") %>%  # file of participant attributes
   mutate(PPID = as.character(PPID))
-sna1 <- read.csv("Final Project/SNA_T1.csv")      # time 1 network data
-sna2 <- read.csv("Final Project/SNA_T2.csv")      # time 1 network data
-prepost <- read.csv("Final Project/PrePostMeasures.csv") %>%   # relevant survey items collected at times 1 and 2
+sna1 <- read.csv("Stats-Final-Project/SNA_T1.csv")      # time 1 network data
+sna2 <- read.csv("Stats-Final-Project/SNA_T2.csv")      # time 1 network data
+prepost <- read.csv("Stats-Final-Project/PrePostMeasures.csv") %>%   # relevant survey items collected at times 1 and 2
   mutate(PPID = as.character(PPID))
 
 
@@ -159,10 +159,10 @@ fnetd1 <- getCentDF(fg1, sna1) %>%
   complet226 <- subset(int290, CompletedPreQ==1 & CompletedPostQ==1)
   complet226long <- subset(int290long, CompletedPreQ==1 & CompletedPostQ==1)
 
-write.csv(int290, "~/Desktop/stats 2/Final Project/int290", row.names=FALSE)
-write.csv(int290long, "~/Desktop/stats 2/Final Project/int290long", row.names=FALSE)
+write.csv(int290, "~/Desktop/stats 2/Final Project/int290.csv", row.names=FALSE)
+write.csv(int290long, "~/Desktop/stats 2/Final Project/int290long.csv", row.names=FALSE)
 write.csv(complet226, "~/Desktop/stats 2/Final Project/complet226.csv", row.names=FALSE)
-write.csv(complet226long, "~/Desktop/stats 2/Final Project/complet226long", row.names=FALSE)
+write.csv(complet226long, "~/Desktop/stats 2/Final Project/complet226long.csv", row.names=FALSE)
 
 
 
