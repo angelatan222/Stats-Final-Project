@@ -12,8 +12,8 @@ The study I am using:
 https://www.science.org/doi/10.1126/sciadv.aba9221 
 
 ```{r}
-install.packages("dagitty")
-install.packages("ggdag")
+#install.packages("dagitty")
+#install.packages("ggdag")
 library(ggplot2)
 library(ggdag)
 #provided data files
@@ -24,10 +24,12 @@ sna2 <- read.csv("Stats-Final-Project/SNA_T2.csv")      # time 1 network data
 
 # final datasets after running FromNets_OnlineMaterial.R - quantified social network strengths 
 # the 290 students who completed the intervention 
-int290 <- read.csv("Stats-Final-Project/int290.csv") 
+int290 <- read.csv("Stats-Final-Project/int290.csv")  %>%  
+  mutate(PPID = as.character(PPID))
 int290long <- read.csv("Stats-Final-Project/int290long.csv")
 # the 226 students who completed 
-complet226 <- read.csv("Stats-Final-Project/complet226.csv")
+complet226 <- read.csv("Stats-Final-Project/complet226.csv")%>%  
+  mutate(PPID = as.character(PPID))
 complet226long <- read.csv("Stats-Final-Project/complet226long.csv")
 ```
 
