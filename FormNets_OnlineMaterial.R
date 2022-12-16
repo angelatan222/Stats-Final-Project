@@ -3,23 +3,20 @@
 # This file is run by PaperAnalyses_OnlineMaterial.Rmd
 
 ## Load libraries
-install.packages("readr")
-install.packages("igraph")
-install.packages("reshape2")
 library(tidyverse)
 library(igraph)
 library(CINNA)
 library(reshape2)
 
 ## Load custom functions
-source("Stats-Final-Project/Functions_OnlineMaterial.R")
+source("Functions_OnlineMaterial.R")
 
 ## Read in data
-att <- read.csv("Stats-Final-Project/attributes.csv") %>%  # file of participant attributes
+att <- read.csv("attributes.csv") %>%  # file of participant attributes
   mutate(PPID = as.character(PPID))
-sna1 <- read.csv("Stats-Final-Project/SNA_T1.csv")      # time 1 network data
-sna2 <- read.csv("Stats-Final-Project/SNA_T2.csv")      # time 1 network data
-prepost <- read.csv("Stats-Final-Project/PrePostMeasures.csv") %>%   # relevant survey items collected at times 1 and 2
+sna1 <- read.csv("SNA_T1.csv")      # time 1 network data
+sna2 <- read.csv("SNA_T2.csv")      # time 1 network data
+prepost <- read.csv("PrePostMeasures.csv") %>%   # relevant survey items collected at times 1 and 2
   mutate(PPID = as.character(PPID))
 
 

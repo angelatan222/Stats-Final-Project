@@ -11,26 +11,37 @@ The study I am using:
 
 https://www.science.org/doi/10.1126/sciadv.aba9221 
 
-```{r}
-#install.packages("dagitty")
-#install.packages("ggdag")
+```{r message=FALSE}
+# Load required packages
 library(ggplot2)
+library(plyr)
+library(dplyr)
+#library(reshape)
+library(igraph)
 library(ggdag)
+library(tidyverse)
+library(igraph)
+library(CINNA)
+
+source(file="FormNets_OnlineMaterial.R")
+
+```
+
+```{r}
 #provided data files
-att <- read.csv("Stats-Final-Project/attributes.csv") %>%  # file of participant attributes
-  mutate(PPID = as.character(PPID))
-sna1 <- read.csv("Stats-Final-Project/SNA_T1.csv")      # time 1 network data
-sna2 <- read.csv("Stats-Final-Project/SNA_T2.csv")      # time 1 network data
+att <- read.csv("Attributes.csv")  # file of participant attributes
+att$PPID <- as.character(att$PPID)
+snat1 <- read.csv("SNA_T1.csv")      # time 1 network data
+snat2 <- read.csv("SNA_T2.csv")      # time 1 network data
 
 # final datasets after running FromNets_OnlineMaterial.R - quantified social network strengths 
 # the 290 students who completed the intervention 
-int290 <- read.csv("Stats-Final-Project/int290.csv")  %>%  
-  mutate(PPID = as.character(PPID))
-int290long <- read.csv("Stats-Final-Project/int290long.csv")
+int290 <- read.csv("int290.csv")
+int290$PPID <- as.character(int290$PPID)
+
 # the 226 students who completed 
-complet226 <- read.csv("Stats-Final-Project/complet226.csv")%>%  
-  mutate(PPID = as.character(PPID))
-complet226long <- read.csv("Stats-Final-Project/complet226long.csv")
+complet226 <- read.csv("complet226.csv") 
+complet226$PPID <- as.character(complet226$PPID)
 ```
 
 # Participant descriptives
@@ -52,7 +63,7 @@ Condition breakdown among 226 "completers" (students who completed the intervent
 ```{r}
 table(complet226$Intervention)
 ```
-Of the 328 students who consented to participate, 226 (70%; 118 Control and 108 Affirmed) students completed the affirmation exercise as well as both the pre and post-semester questionnaires
+Of the 328 students who consented to participate, 226 (70%; 118 Affirmed and 108 Control) students completed the affirmation exercise as well as both the pre and post-semester questionnaires
 
 ## Multiple regression analyses predicting friendship network DVs from intervention condition
 
@@ -109,13 +120,14 @@ For permutations tests, I copied over the study's original code on how they quan
 
 #### Time 1 closeness centrality 
 ```{r}
-fclose1.coef.obs <- modfclose1$coefficients[2] # coefficient of effect of intervention condition on closeness centrality
+fclose1.coef.obs <- modfclose1$coefficients[2] 
+# coefficient of effect of intervention condition on closeness centrality
 fclose1.coef.out <- vector("numeric")
 
 for(i in 1:numrands){   
-  randnodes <- sample(rownames(fmat1), replace = FALSE)   # randomly order node labels
-  rownames(fmat1r) <- randnodes                           # assign randomly ordered nodes to row names of matrix
-  colnames(fmat1r) <- randnodes                           # assign randomly ordered nodes to column names of matrix
+  randnodes <- sample(rownames(fmat1), replace = FALSE)   
+  rownames(fmat1r) <- randnodes                           
+  colnames(fmat1r) <- randnodes                           
    
   # the paper's method of quantifying social networks                                                           
   fg1r <- igraph::graph.adjacency(fmat1r, mode=c("directed"), weighted=TRUE, diag=FALSE)  # form network out of matrix
@@ -358,13 +370,16 @@ summary(glm(TookSpringClass ~ Intervention, int290, family="binomial"))
 
 ## Changing evaluation criteria 
 ```{r}
-snat1_interest<- subset(SNA_T1, select= c(PPID, Friend1Strength, Friend2Strength, Friend3Strength, Friend4Strength, Friend5Strength, Friend6Strength)) #selecting friendship strengths
+#selecting friendship strengths
+snat1_interest<- subset(snat1, select= c(PPID, Friend1Strength, Friend2Strength, Friend3Strength, Friend4Strength, Friend5Strength, Friend6Strength))
 snat1_interest[is.na(snat1_interest)] <- 0
-snat1_interest$Friendship <- rowSums(snat1_interest[ , c(2:7)]) #summing up friendship strengths
-t1 <- subset(snat1_interest, select= c(PPID, Friendship))%>%  #selecting participant ID and friendship 
+#summing up friendship strengths
+snat1_interest$Friendship <- rowSums(snat1_interest[ , c(2:7)]) 
+#selecting participant ID and friendship
+t1 <- subset(snat1_interest, select= c(PPID, Friendship))%>%   
   mutate(PPID = as.character(PPID))
 
-snat2_interest<- subset(SNA_T2, select= c(PPID, Friend1Strength, Friend2Strength, Friend3Strength, Friend4Strength, Friend5Strength, Friend6Strength))
+snat2_interest<- subset(snat2, select= c(PPID, Friend1Strength, Friend2Strength, Friend3Strength, Friend4Strength, Friend5Strength, Friend6Strength))
 snat2_interest[is.na(snat2_interest)] <- 0
 snat2_interest$Friendship <- rowSums(snat2_interest[ , c(2:7)])
 t2 <- subset(snat2_interest, select= c(PPID, Friendship))%>%
@@ -394,8 +409,10 @@ X <- int290$Intervention
 Z <- int290$hclose.T2.Fr
 Y <- int290$TookSpringClass
 
-summary(glm(Y ~ X, family = "binomial")) #does x cause y in the overall sense? yes
-summary(glm(Y ~ X + Z, family = "binomial")) #but when u add in the mediator z, now it looks like x does not cause y. power of x disappears. 
+summary(glm(Y ~ X, family = "binomial")) # x cause y in the overall sense
+#but when u add in the mediator z, now it looks like x does not cause y. 
+#power of x disappears. 
+summary(glm(Y ~ X + Z, family = "binomial")) 
 
 #betweenness
 Z <- int290$btwn.T2.Fr
@@ -410,10 +427,8 @@ summary(glm(Y ~ X, family = "binomial"))
 summary(glm(Y ~ X + Z, family = "binomial"))
 
 dagify(Y ~ Z, Z~X) %>%
-  ggdag()
+  ggdag() + 
+  theme_dag()
 ```
-
-
-
 
 
